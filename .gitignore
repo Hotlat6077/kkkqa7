@@ -1,0 +1,45 @@
+﻿# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# 密钥文件（重要！不要提交密钥）
+*.key
+*.pem
+id_rsa
+id_rsa.pub
+key
+key.pub
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+*.log
+logs/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 构建输出
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 临时文件
+tmp/
+temp/
+*.tmp
