@@ -1,0 +1,122 @@
+import numpy as np
+from datetime import datetime   
+from mydb.get_mongo import get_db
+from Signal1_index import indexx
+from preprocess_data import ndarray2list0, ndarray2list1    
+from preprocess import *
+
+def raw(vib, fs):
+    vib = np.array(vib)
+    fs = fs
+    return vib
+
+# 曹学勇修补 加速度有效值
+def update_mins_fj_signal_analysis3_cao_fix(data, fs ,time, methods='raw', index13_interval = 100):
+    # db = get_db()
+    # collection = db['vibration_data']
+    # group = int(group)
+    # machine = int(machine)
+    # component = int(component)
+    # sensor = int(sensor)
+
+    # fs = FSTableService.get_fs2(group, machine, component, sensor, file_name, db)
+    # folder_path = config.local_data_path + f"/{group}/{machine}/{component}/{sensor}/"
+    # signal = []
+    # with open(f"{folder_path}/{file_name}", 'r+') as f:
+    #     data = f.readlines()[0]
+    #     signal.extend(list(map(float, data.split(','))))
+
+    # 转速信号提取
+    speed = 0
+    speed = np.array([float(speed)]) / 60
+    speed = np.round(speed, 4)
+    # print(localfilename)
+    # -------------------------   以下为之前读数据库的模式，需要被替换掉
+    # data1 = list(collection.find({'machine': machine,'group':group,'component':component,'sensor':sensor}, {'vib':1,'speed':1}).sort([('datetime', -1)]).limit(1))[0]  # 改动
+    # signal=data1.get('vib')
+    signal = np.array(data)
+    signal = (signal - np.mean(signal)).tolist()
+    # fs = 25600
+    blank_dict = {}
+    exec(f"blank_dict['out']={methods}(signal,fs)")
+    Feaa = blank_dict['out'].tolist()
+
+    
+    T = indexx(RawSignal=Feaa, SampleFraquency=fs, Sampleinterval=index13_interval)
+    Fea = T.time_domainx()
+
+    result = {}
+    # 原信号数据
+    result['fea_y'] = Feaa
+    length = len(Feaa)
+    f_x1 = ndarray2list0(np.arange(length) + 1)
+    f_x = [x / fs for x in f_x1]
+    result['fea_x'] = f_x
+    if len(Fea) >= 1:
+        result['rms'] = Fea[:, 0].tolist()
+        result['peak'] = Fea[:, 1].tolist()
+        length = len(Fea[:, 0])
+    else:
+        result['rms'] = []
+        result['peak'] = []
+        length = 0
+
+
+    result['fea_xaxis'] = ndarray2list0(np.arange(length) + 1)
+    # result['group'] = str(group)
+    # result['machine'] = str(machine)
+    # result['component'] = component
+    # result['sensor'] = sensor
+
+    # collection_group = db['group_data']
+    # group_name = list(collection_group.find({'groupID': 'GR_' + str(group)}, {'name': 1}))
+
+    # collection_machine = db['machine_data']
+    # machine_name = list(collection_machine.find({'machineID': 'MA_' + str(group) + '_' + str(machine)}, {'name': 1}))
+
+    # collection_component = db['component_data']
+    # component_name = list(
+    #     collection_component.find({'componentID': 'CO_' + str(group) + '_' + str(machine) + '_' + str(component)},
+    #                               {'name': 1}))
+
+    # collection_sensor = db['sensor_data']
+    # sensor_name = list(collection_sensor.find(
+    #     {'sensorID': 'SE_' + str(group) + '_' + str(machine) + '_' + str(component) + '_' + str(sensor)}, {'name': 1}))
+
+    # result['group_name'] = group_name
+    # result['machine_name'] = machine_nameclear
+    # result['component_name'] = component_name
+    # result['sensor_name'] = sensor_name
+    result['file'] = ""
+    # time_add = datetime.strptime(file_name.split('.')[0], '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+    time_add = datetime.strptime(time, '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+    result['time_add'] = time_add
+    speed = speed.tolist()
+    result['speed'] = speed
+    print("加速度有效值计算完成:", result)
+    return result
+
+
+if __name__ == "__main__":
+    sensor_id = 'SE_1_1_2_3'
+    time = "20251229180100"
+    db = get_db()
+    collection = db['pump_waveform_report']
+    # 通过sensorId取信号原始数据 tju qg 
+    query = {
+        'sensorId': sensor_id,
+        'time': time
+    }
+
+    document = collection.find_one(query)
+    # 提取 fs 字段
+    fs = document.get('fs')
+    data = document.get('datas')
+    print(type(data))
+    res = update_mins_fj_signal_analysis3_cao_fix(data, fs, time=time, methods='raw', index13_interval = 100)
+    print("res: ", res)
+    from draw import plot_waveform
+    # plot_waveform(res, 'fea_xaxis', 'rms',color='blue', show_plot=True, label_name='rms')
+    # plot_waveform(res, 'fea_xaxis', 'peak',color='red', show_plot=True, label_name='peak')
+    from draw2plot import plot_waveform_dual
+    plot_waveform_dual(res, 'fea_x', 'fea_y','fea_xaxis', 'peak',top_label= 'Fea',bottom_label='peak')

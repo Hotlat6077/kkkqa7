@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF-DETR WebGPU - Analytics Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+</head>
+<body>
+    <!-- 语言切换 -->
+    <div class="lang-toggle">
+        <button id="lang-zh" class="lang-btn active">中文</button>
+        <button id="lang-en" class="lang-btn">EN</button>
+    </div>
+
+    <header>
+        <h1 data-text="RF-DETR WebGPU">RF-DETR WebGPU</h1>
+        <div class="header-subtitle">
+            <span class="version-tag">SYS.V.4.0</span>
+            <span data-i18n="subtitle">实时目标检测 · 完全本地运行</span>
+        </div>
+        <div class="header-status">
+            <div class="status-info">
+                <div class="status-online" data-i18n="systemOnline">系统在线</div>
+                <div class="latency"><span data-i18n="latency">延迟</span>: <span id="latency-value">12ms</span></div>
+            </div>
+            <div class="header-actions">
+                <button id="report-btn" class="action-btn">
+                    <span class="material-symbols-outlined">description</span>
+                    <span data-i18n="generateReport">生成报告</span>
+                </button>
+                <button id="export-btn" class="action-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    <span data-i18n="export">导出</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="video-section">
+            <div class="video-container">
+                <div class="video-header">
+                    <div class="source-buttons">
+                        <button id="source-webcam" class="source-btn active" title="Webcam">
+                            <span class="material-symbols-outlined">videocam</span>
+                            <span data-i18n="webcam">摄像头</span>
+                        </button>
+                        <button id="source-file" class="source-btn" title="Video File">
+                            <span class="material-symbols-outlined">upload_file</span>
+                            <span data-i18n="file">文件</span>
+                        </button>
+                        <button id="motion-btn" class="source-btn" title="Motion Detection">
+                            <span class="material-symbols-outlined">directions_run</span>
+                            <span data-i18n="motion">运动</span>
+                        </button>
+                    </div>
+                    <button id="pause-btn" class="pause-btn">
+                        <span class="material-symbols-outlined" id="pause-icon">pause</span>
+                        <span class="material-symbols-outlined" id="play-icon" style="display:none">play_arrow</span>
+                    </button>
+                </div>
+
+                <div class="fps-display">
+                    <span id="fps-counter">60.0</span>
+                    <span class="fps-label">FPS</span>
+                </div>
+
+                <div class="motion-indicator" id="motion-indicator">
+                    <span class="material-symbols-outlined">sensors</span>
+                    <span data-i18n="motionDetect">运动检测</span>
+                    <span id="motion-level">0%</span>
+                </div>
+
+                <div id="status">
+                    <div class="spinner"></div>
+                    <div id="status-content">
+                        <div id="status-text" data-i18n="initializing">初始化中...</div>
+                        <div id="status-sub" data-i18n="cameraAccess">请允许访问摄像头</div>
+                    </div>
+                </div>
+
+                <input type="file" id="file-input" accept="video/*" hidden />
+                <video id="webcam" autoplay playsinline muted></video>
+                <canvas id="overlay"></canvas>
+                <canvas id="motion-canvas" class="motion-canvas"></canvas>
+            </div>
+
+            <div class="controls-panel">
+                <div class="control-item">
+                    <label>
+                        <span class="material-symbols-outlined">tune</span>
+                        <span data-i18n="threshold">置信度阈值</span>
+                    </label>
+                    <div class="slider-container">
+                        <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.5">
+                        <span id="thresh-val">0.50</span>
+                    </div>
+                </div>
+
+                <div class="control-item">
+                    <label>
+                        <span class="material-symbols-outlined">filter_alt</span>
+                        <span data-i18n="classFilter">类别筛选</span>
+                    </label>
+                    <input type="text" id="allowed-labels" data-i18n-placeholder="labelPlaceholder" placeholder="例如: person, car, dog">
+                </div>
+
+                <div class="control-item">
+                    <label>
+                        <span class="material-symbols-outlined">sensitivity</span>
+                        <span data-i18n="motionSensitivity">运动灵敏度</span>
+                    </label>
+                    <div class="slider-container">
+                        <input type="range" id="motion-sensitivity" min="1" max="50" step="1" value="20">
+                        <span id="motion-sens-val">20</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside class="stats-panel">
+            <div class="panel-tabs">
+                <button class="tab-btn active" data-tab="detections">
+                    <span class="material-symbols-outlined">radar</span>
+                    <span data-i18n="tabDetections">检测</span>
+                </button>
+                <button class="tab-btn" data-tab="motion">
+                    <span class="material-symbols-outlined">directions_run</span>
+                    <span data-i18n="tabMotion">运动</span>
+                </button>
+                <button class="tab-btn" data-tab="analytics">
+                    <span class="material-symbols-outlined">analytics</span>
+                    <span data-i18n="tabAnalytics">分析</span>
+                </button>
+            </div>
+
+            <!-- 检测面板 -->
+            <div class="tab-content active" id="tab-detections">
+                <div class="panel-header">
+                    <h2><span class="material-symbols-outlined">radar</span> <span data-i18n="detectionLog">检测日志</span></h2>
+                    <div class="live-indicator"></div>
+                </div>
+
+                <div class="stats-summary">
+                    <div class="stat-box">
+                        <div class="stat-label" data-i18n="totalDetections">总检测数</div>
+                        <div class="stat-value" id="total-count">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label" data-i18n="currentFrame">当前帧</div>
+                        <div class="stat-value" id="frame-count">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label" data-i18n="avgConfidence">平均置信度</div>
+                        <div class="stat-value" id="avg-conf">0%</div>
+                    </div>
+                </div>
+
+                <div class="detection-list">
+                    <div class="list-header">
+                        <span data-i18n="objectClass">目标类别</span>
+                        <span data-i18n="confidence">置信度</span>
+                    </div>
+                    <div id="detections-container"></div>
+                </div>
+
+                <div class="category-stats">
+                    <div class="category-header" data-i18n="categoryStats">类别统计</div>
+                    <div id="category-bars"></div>
+                </div>
+            </div>
+
+            <!-- 运动面板 -->
+            <div class="tab-content" id="tab-motion">
+                <div class="panel-header">
+                    <h2><span class="material-symbols-outlined">directions_run</span> <span data-i18n="motionAnalysis">运动分析</span></h2>
+                    <div class="motion-status" id="motion-status">
+                        <span class="status-dot"></span>
+                        <span data-i18n="monitoring">监测中</span>
+                    </div>
+                </div>
+
+                <div class="motion-stats">
+                    <div class="motion-stat-box">
+                        <div class="motion-icon">
+                            <span class="material-symbols-outlined">speed</span>
+                        </div>
+                        <div class="motion-stat-info">
+                            <div class="motion-stat-value" id="motion-intensity">0%</div>
+                            <div class="motion-stat-label" data-i18n="motionIntensity">运动强度</div>
+                        </div>
+                    </div>
+                    <div class="motion-stat-box">
+                        <div class="motion-icon">
+                            <span class="material-symbols-outlined">center_focus_strong</span>
+                        </div>
+                        <div class="motion-stat-info">
+                            <div class="motion-stat-value" id="motion-regions">0</div>
+                            <div class="motion-stat-label" data-i18n="activeRegions">活跃区域</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="motion-chart">
+                    <div class="chart-header" data-i18n="motionHistory">运动历史</div>
+                    <canvas id="motion-chart"></canvas>
+                </div>
+
+                <div class="motion-zones">
+                    <div class="zone-header" data-i18n="motionZones">运动区域</div>
+                    <div id="zone-list"></div>
+                </div>
+            </div>
+
+            <!-- 分析面板 -->
+            <div class="tab-content" id="tab-analytics">
+                <div class="panel-header">
+                    <h2><span class="material-symbols-outlined">analytics</span> <span data-i18n="analyticsReport">分析报告</span></h2>
+                </div>
+
+                <div class="analytics-summary">
+                    <div class="analytics-card">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #00F0FF, #0080FF)">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </div>
+                        <div class="card-content">
+                            <div class="card-value" id="analytics-frames">0</div>
+                            <div class="card-label" data-i18n="framesProcessed">处理帧数</div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #8A8A8A, #6B6B6B)">
+                            <span class="material-symbols-outlined">fact_check</span>
+                        </div>
+                        <div class="card-content">
+                            <div class="card-value" id="analytics-detections">0</div>
+                            <div class="card-label" data-i18n="totalDetected">检测总数</div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #C9A962, #A88B4A)">
+                            <span class="material-symbols-outlined">category</span>
+                        </div>
+                        <div class="card-content">
+                            <div class="card-value" id="analytics-categories">0</div>
+                            <div class="card-label" data-i18n="uniqueCategories">识别类别</div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #F59E0B, #FF8C00)">
+                            <span class="material-symbols-outlined">schedule</span>
+                        </div>
+                        <div class="card-content">
+                            <div class="card-value" id="analytics-duration">0s</div>
+                            <div class="card-label" data-i18n="sessionDuration">会话时长</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="performance-chart">
+                    <div class="chart-header">
+                        <span data-i18n="fpsChart">帧率趋势</span>
+                        <span id="fps-trend" class="trend-indicator"></span>
+                    </div>
+                    <canvas id="fps-chart"></canvas>
+                </div>
+
+                <div class="detection-timeline">
+                    <div class="timeline-header" data-i18n="detectionTimeline">检测时间线</div>
+                    <canvas id="timeline-chart"></canvas>
+                </div>
+
+                <div class="insights-panel">
+                    <div class="insights-header" data-i18n="aiInsights">AI洞察</div>
+                    <div id="insights-list"></div>
+                </div>
+            </div>
+
+            <div class="panel-footer">
+                <span>MEM: <span id="mem-usage">0MB</span></span>
+                <span>GPU: <span id="gpu-usage">0%</span></span>
+            </div>
+        </aside>
+    </main>
+
+    <!-- 报告模态框 -->
+    <div class="modal" id="report-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span class="material-symbols-outlined">description</span> <span data-i18n="analysisReport">分析报告</span></h2>
+                <button class="modal-close" id="close-modal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body" id="report-content">
+                <!-- 报告内容 -->
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn" id="copy-report">
+                    <span class="material-symbols-outlined">content_copy</span>
+                    <span data-i18n="copyReport">复制报告</span>
+                </button>
+                <button class="modal-btn primary" id="download-report">
+                    <span class="material-symbols-outlined">download</span>
+                    <span data-i18n="downloadReport">下载报告</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <span data-i18n="poweredBy"> Powered by </span>
+        <a href="https://github.com/huggingface/transformers.js" target="_blank">Transformers.js V4</a>
+    </footer>
+
+    <script type="module" src="/main.js"></script>
+</body>
+</html>

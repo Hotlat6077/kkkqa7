@@ -1,0 +1,40 @@
+import numpy as np
+import numpy.fft as fft
+
+
+def raw(vib, fs):
+    vib = np.array(vib)
+    fs = fs
+    return vib
+
+def spectrum(signal, fs, methods):
+    result = {}
+    signal = np.array(signal)
+    signal = (signal - np.mean(signal)).tolist()
+    blank_dict = {}  # 3.创建一个空字典
+    exec(f"blank_dict['out']={methods}(signal,fs)")
+    Feaa = blank_dict['out'].tolist()  # feaa 就是上面的methods执行得到的结果 vib 字典输出为数组numpy转化成别的数组
+    
+    print("Feaa 的值:", Feaa)  # [1, 2, 3, 4, 5]
+    fs = fs  # 采样频率
+    Sampling_points = len(Feaa)  # 采样点数，fft后的点数就是这个数
+    df = 1 / fs  # 采样间隔时间
+    y = Feaa[:]
+    y = list(map(float, y))
+    y = np.array(y)
+
+    fft_values_ = fft.fft(y)
+    Fea1x = 2.0 / Sampling_points * np.abs(fft_values_[0:Sampling_points // 2])
+    Fea1y = np.linspace(0.0, fs / 2.0, Sampling_points // 2)
+
+    log_y = np.log(Fea1y + 0.0001)  # 计算对数
+
+    LL = len(Fea1x)
+
+    Fea1y = Fea1y[0:LL]
+    
+    result['log_y'] = log_y.tolist()  # 增加对数变换后的数据
+    result['fea_xaxis'] = Fea1x
+    result['fftyy'] = Fea1y.tolist()
+
+    return Fea1x, Fea1y, log_y
